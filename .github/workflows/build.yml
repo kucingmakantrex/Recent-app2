@@ -1,0 +1,409 @@
+# HiOS Stack Recents (modul LSPosed) - cukup satu file ini.
+# Simpan sebagai .github/workflows/build.yml di repository GitHub, lalu jalankan
+# Actions > Build APK > Run workflow. Hasil: artifact HiOS-StackRecents-apk.
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Buat file proyek
+        run: |
+          cat > settings.gradle <<'EOF_0'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "HiOSStackRecents"
+          include ':app', ':xposed-stub'
+          EOF_0
+          cat > build.gradle <<'EOF_1'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF_1
+          cat > gradle.properties <<'EOF_2'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.nonTransitiveRClass=true
+          EOF_2
+          cat > .gitignore <<'EOF_3'
+          .gradle/
+          build/
+          local.properties
+          .idea/
+          *.iml
+          EOF_3
+          mkdir -p xposed-stub
+          cat > xposed-stub/build.gradle <<'EOF_4'
+          plugins {
+              id 'java-library'
+          }
+
+          java {
+              sourceCompatibility = JavaVersion.VERSION_17
+              targetCompatibility = JavaVersion.VERSION_17
+          }
+          EOF_4
+          mkdir -p xposed-stub/src/main/java/de/robv/android/xposed
+          cat > xposed-stub/src/main/java/de/robv/android/xposed/XC_MethodHook.java <<'EOF_5'
+          package de.robv.android.xposed;
+
+          import java.lang.reflect.Member;
+
+          public abstract class XC_MethodHook {
+              public XC_MethodHook() {}
+
+              public XC_MethodHook(int priority) {}
+
+              protected void beforeHookedMethod(MethodHookParam param) throws Throwable {}
+
+              protected void afterHookedMethod(MethodHookParam param) throws Throwable {}
+
+              public static class MethodHookParam {
+                  public Member method;
+                  public Object thisObject;
+                  public Object[] args;
+              }
+
+              public class Unhook {
+                  public void unhook() {}
+              }
+          }
+          EOF_5
+          mkdir -p xposed-stub/src/main/java/de/robv/android/xposed
+          cat > xposed-stub/src/main/java/de/robv/android/xposed/XposedBridge.java <<'EOF_6'
+          package de.robv.android.xposed;
+
+          public final class XposedBridge {
+              private XposedBridge() {}
+              public static void log(String text) {}
+              public static void log(Throwable t) {}
+          }
+          EOF_6
+          mkdir -p xposed-stub/src/main/java/de/robv/android/xposed
+          cat > xposed-stub/src/main/java/de/robv/android/xposed/XposedHelpers.java <<'EOF_7'
+          package de.robv.android.xposed;
+
+          public class XposedHelpers {
+              public static Class<?> findClassIfExists(String className, ClassLoader classLoader) {
+                  return null;
+              }
+
+              public static XC_MethodHook.Unhook findAndHookMethod(Class<?> clazz, String methodName,
+                                                                   Object... parameterTypesAndCallback) {
+                  return null;
+              }
+          }
+          EOF_7
+          mkdir -p xposed-stub/src/main/java/de/robv/android/xposed
+          cat > xposed-stub/src/main/java/de/robv/android/xposed/IXposedHookLoadPackage.java <<'EOF_8'
+          package de.robv.android.xposed;
+
+          import de.robv.android.xposed.callbacks.XC_LoadPackage;
+
+          public interface IXposedHookLoadPackage {
+              void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable;
+          }
+          EOF_8
+          mkdir -p xposed-stub/src/main/java/de/robv/android/xposed/callbacks
+          cat > xposed-stub/src/main/java/de/robv/android/xposed/callbacks/XC_LoadPackage.java <<'EOF_9'
+          package de.robv.android.xposed.callbacks;
+
+          public abstract class XC_LoadPackage {
+              public static final class LoadPackageParam {
+                  public String packageName;
+                  public String processName;
+                  public ClassLoader classLoader;
+              }
+          }
+          EOF_9
+          mkdir -p app
+          cat > app/build.gradle <<'EOF_10'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'io.hios.stackrecents'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'io.hios.stackrecents'
+                  minSdk 28
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              // API Xposed disediakan LSPosed saat runtime; stub hanya untuk kompilasi
+              compileOnly project(':xposed-stub')
+          }
+          EOF_10
+          mkdir -p app/src/main
+          cat > app/src/main/AndroidManifest.xml <<'EOF_11'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <application
+                  android:allowBackup="false"
+                  android:label="HiOS Stack Recents">
+
+                  <meta-data
+                      android:name="xposedmodule"
+                      android:value="true" />
+                  <meta-data
+                      android:name="xposeddescription"
+                      android:value="Recent apps bertumpuk untuk HiOS Launcher 15" />
+                  <meta-data
+                      android:name="xposedminversion"
+                      android:value="93" />
+                  <meta-data
+                      android:name="xposedscope"
+                      android:resource="@array/xposed_scope" />
+              </application>
+          </manifest>
+          EOF_11
+          mkdir -p app/src/main/assets
+          cat > app/src/main/assets/xposed_init <<'EOF_12'
+          io.hios.stackrecents.Main
+          EOF_12
+          mkdir -p app/src/main/res/values
+          cat > app/src/main/res/values/arrays.xml <<'EOF_13'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string-array name="xposed_scope">
+                  <item>com.transsion.hilauncher</item>
+              </string-array>
+          </resources>
+          EOF_13
+          mkdir -p app/src/main/java/io/hios/stackrecents
+          cat > app/src/main/java/io/hios/stackrecents/Main.java <<'EOF_14'
+          package io.hios.stackrecents;
+
+          import android.graphics.Canvas;
+          import android.view.View;
+          import android.view.ViewGroup;
+
+          import de.robv.android.xposed.IXposedHookLoadPackage;
+          import de.robv.android.xposed.XC_MethodHook;
+          import de.robv.android.xposed.XposedBridge;
+          import de.robv.android.xposed.XposedHelpers;
+          import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+
+          /**
+           * Membuat layar recent apps HiOS Launcher 15 tampil bertumpuk (deck).
+           * Kartu di tengah paling depan; kartu lain mengintip dari belakang.
+           *
+           * Efek digambar lewat transformasi kanvas saat RecentsView menggambar anak-anaknya,
+           * jadi translasi/skala/alpha milik launcher (animasi tutup, geser, buka) tidak ditimpa.
+           */
+          public class Main implements IXposedHookLoadPackage {
+
+              private static final String TAG = "[HiOSStackRecents] ";
+              private static final String TARGET_PKG = "com.transsion.hilauncher";
+              private static final String RECENTS_VIEW = "com.android.quickstep.views.RecentsView";
+              private static final String TASK_VIEW = "com.android.quickstep.views.TaskView";
+
+              // ===== Pengaturan tampilan (ubah lalu build ulang) =====
+              /** Seberapa jauh tumpukan menyebar ke samping, dalam pecahan lebar layar. */
+              static final float PEEK = 0.25f;
+              /** Kecepatan kartu mendekati batas sebaran (makin besar = makin cepat rapat). */
+              static final float PEEK_RATE = 1.3f;
+              /** Pengurangan skala per satu kartu menjauh dari tengah. */
+              static final float SCALE_STEP = 0.04f;
+              /** Skala terkecil kartu. */
+              static final float MIN_SCALE = 0.85f;
+              // =======================================================
+
+              private static Class<?> sRecentsView;
+              private static Class<?> sTaskView;
+              private static boolean sSaved = false;
+              private static boolean sDisabled = false;
+
+              @Override
+              public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
+                  if (!TARGET_PKG.equals(lpparam.packageName)) {
+                      return;
+                  }
+                  ClassLoader cl = lpparam.classLoader;
+                  sRecentsView = XposedHelpers.findClassIfExists(RECENTS_VIEW, cl);
+                  sTaskView = XposedHelpers.findClassIfExists(TASK_VIEW, cl);
+                  if (sRecentsView == null || sTaskView == null) {
+                      XposedBridge.log(TAG + "RecentsView/TaskView tidak ditemukan, modul tidak aktif");
+                      return;
+                  }
+                  // Urutan gambar: kartu tengah di atas, kartu samping di belakang
+                  try {
+                      XposedHelpers.findAndHookMethod(sRecentsView, "dispatchDraw", Canvas.class,
+                              new XC_MethodHook() {
+                                  @Override
+                                  protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                      if (sDisabled) {
+                                          return;
+                                      }
+                                      try {
+                                          updateZ((ViewGroup) param.thisObject);
+                                      } catch (Throwable t) {
+                                          fail(t);
+                                      }
+                                  }
+                              });
+                  } catch (Throwable t) {
+                      XposedBridge.log(TAG + "hook dispatchDraw gagal: " + t);
+                  }
+
+                  // Transformasi tumpukan per kartu, tepat sebelum kartu digambar
+                  Class<?> decl = null;
+                  for (Class<?> k = sRecentsView; k != null; k = k.getSuperclass()) {
+                      try {
+                          k.getDeclaredMethod("drawChild", Canvas.class, View.class, long.class);
+                          decl = k;
+                          break;
+                      } catch (NoSuchMethodException ignored) {
+                          // lanjut ke superclass
+                      }
+                  }
+                  if (decl == null) {
+                      XposedBridge.log(TAG + "drawChild tidak ditemukan, modul tidak aktif");
+                      return;
+                  }
+                  try {
+                      XposedHelpers.findAndHookMethod(decl, "drawChild",
+                              Canvas.class, View.class, long.class, new XC_MethodHook() {
+                                  @Override
+                                  protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                      if (sDisabled || !sRecentsView.isInstance(param.thisObject)) {
+                                          return;
+                                      }
+                                      try {
+                                          sSaved = prepare((Canvas) param.args[0],
+                                                  (ViewGroup) param.thisObject, (View) param.args[1]);
+                                      } catch (Throwable t) {
+                                          sSaved = false;
+                                          fail(t);
+                                      }
+                                  }
+
+                                  @Override
+                                  protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                                      if (!sRecentsView.isInstance(param.thisObject)) {
+                                          return;
+                                      }
+                                      if (sSaved) {
+                                          sSaved = false;
+                                          ((Canvas) param.args[0]).restore();
+                                      }
+                                  }
+                              });
+                      XposedBridge.log(TAG + "aktif untuk " + TARGET_PKG);
+                  } catch (Throwable t) {
+                      XposedBridge.log(TAG + "hook drawChild gagal: " + t);
+                  }
+              }
+
+              private static void fail(Throwable t) {
+                  sDisabled = true;
+                  XposedBridge.log(TAG + "error, efek dimatikan: " + t);
+              }
+
+              /**
+               * Jarak tengah kartu dari tengah layar dalam satuan lebar kartu (bertanda).
+               * NaN bila efek tidak berlaku: bukan TaskView atau bukan potret satu baris.
+               * Kartu yang sedang dianimasikan tutup tetap ikut ditransformasi agar tumpukan
+               * tidak hilang sesaat; posisinya sudah memuat translasi milik launcher.
+               */
+              private static float signedAq(ViewGroup rv, View c) {
+                  int w = rv.getWidth();
+                  int h = rv.getHeight();
+                  if (w <= 0 || h <= w || sTaskView == null || !sTaskView.isInstance(c)) {
+                      return Float.NaN;
+                  }
+                  int cw = c.getWidth();
+                  if (cw <= 0) {
+                      return Float.NaN;
+                  }
+                  float cx = rv.getScrollX() + w / 2f;
+                  float delta = c.getLeft() + c.getTranslationX() + cw / 2f - cx;
+                  return delta / cw;
+              }
+
+              private static void updateZ(ViewGroup rv) {
+                  int n = rv.getChildCount();
+                  for (int i = 0; i < n; i++) {
+                      View c = rv.getChildAt(i);
+                      float s = signedAq(rv, c);
+                      float aq = Float.isNaN(s) ? 0f : Math.abs(s);
+                      c.setTranslationZ(aq < 0.02f ? 0f : -aq * 10f);
+                  }
+              }
+
+              /** Menerapkan transformasi ke kanvas. Mengembalikan true bila canvas.save() dipanggil. */
+              private static boolean prepare(Canvas canvas, ViewGroup rv, View c) {
+                  float s = signedAq(rv, c);
+                  if (Float.isNaN(s)) {
+                      return false;
+                  }
+                  float aq = Math.abs(s);
+                  if (aq < 0.02f) {
+                      return false;
+                  }
+                  int w = rv.getWidth();
+                  int cw = c.getWidth();
+                  float delta = s * cw;
+                  float sign = s > 0f ? 1f : -1f;
+                  float shown = (float) (PEEK * w * (1.0 - Math.exp(-PEEK_RATE * aq)));
+                  float tx = sign * shown - delta;
+                  float scale = Math.max(MIN_SCALE, 1f - SCALE_STEP * aq);
+                  float px = c.getLeft() + c.getTranslationX() + cw / 2f;
+                  float py = c.getTop() + c.getTranslationY() + c.getHeight() / 2f;
+                  canvas.save();
+                  canvas.translate(tx, 0f);
+                  canvas.scale(scale, scale, px, py);
+                  return true;
+              }
+          }
+          EOF_14
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HiOS-StackRecents-apk
+          path: app/build/outputs/apk/debug/*.apk
